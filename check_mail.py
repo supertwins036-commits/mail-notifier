@@ -8,7 +8,8 @@ GitHub Actions から定期的に動かす想定。設定はすべて環境変�
     IMAP_PASSWORD        メールのパスワード
     IMAP_FOLDER          省略時 INBOX
     WATCH_FROM           見張る差出人。複数はカンマ区切り。「a@x.jp」はアドレス全体、
-                         「*@x.jp」はそのドメインのすべて(大文字小文字は区別しない)
+                         「*@x.jp」はそのドメインのすべて、「kitawaki*@*」は kitawaki で始まる人
+                         (「*」は @ 以外の0文字以上。大文字小文字は区別しない)
     DISCORD_WEBHOOK_URL  通知先の Discord Webhook URL
 
 既に知らせたメールは state.json(最後に見た UID)で覚える。
@@ -24,6 +25,7 @@ import email.utils
 import imaplib
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -88,24 +90,44 @@ def load_config(env: dict[str, str]) -> Config:
 
 
 def parse_watch_list(raw: str) -> frozenset[str]:
-    """「boss@example.com」(アドレス全体)か「*@example.com」(そのドメイン全部)を受け付ける。"""
+    """見張る差出人の指定を読む。「*」は「@ 以外の0文字以上」を表す。
+
+    boss@example.com   その人だけ
+    *@example.com      そのドメインのすべて(サブドメインは含まない)
+    kitawaki*@*        kitawaki で始まる人(ドメインは問わない)
+
+    すべてに一致する「*@*」や、形のおかしいものは無視する(大量の通知を防ぐ)。
+    """
     result = set()
     for item in raw.split(","):
         item = item.strip().lower()
         if item.startswith("@"):
             item = "*" + item
-        local, sep, domain = item.rpartition("@")
-        if sep and local and domain and "." in domain and "*" not in domain:
-            result.add(item)
+        if item.count("@") != 1:
+            continue
+        local, _, domain = item.partition("@")
+        if not local or not domain:
+            continue
+        if local.strip("*") == "" and domain.strip("*") == "":
+            print(f"警告: すべてのメールに一致する指定 {item} は無視します", file=sys.stderr)
+            continue
+        if "*" not in domain and "." not in domain:
+            continue
+        result.add(item)
     return frozenset(result)
 
 
+def _pattern_to_regex(pattern: str) -> re.Pattern:
+    body = "[^@]*".join(re.escape(p) for p in pattern.split("*"))
+    return re.compile(f"^{body}$")
+
+
 def is_watched(addr: str, watch: frozenset[str]) -> bool:
-    """大文字小文字は区別しない。ドメイン指定はサブドメインを含まない(*@a.jp は x@b.a.jp に一致しない)。"""
+    """大文字小文字は区別しない。"""
     addr = addr.strip().lower()
-    if "@" not in addr:
+    if addr.count("@") != 1:
         return False
-    return addr in watch or "*@" + addr.rpartition("@")[2] in watch
+    return any(_pattern_to_regex(p).match(addr) for p in watch)
 
 
 def decode_header_value(raw: str | None) -> str:

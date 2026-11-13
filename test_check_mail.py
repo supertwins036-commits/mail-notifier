@@ -67,8 +67,34 @@ class WatchTest(unittest.TestCase):
         self.assertFalse(cm.is_watched("x@example.com", watch))
         self.assertFalse(cm.is_watched("", watch))
 
+    def test_prefix_any_domain(self):
+        watch = cm.parse_watch_list("*@ks-sys.jp, kitawaki*@*")
+        self.assertTrue(cm.is_watched("kitawaki@gmail.com", watch))
+        self.assertTrue(cm.is_watched("Kitawaki.Taro@sub.example.co.jp", watch))
+        self.assertTrue(cm.is_watched("anyone@ks-sys.jp", watch))
+        self.assertFalse(cm.is_watched("taro.kitawaki@gmail.com", watch))  # 先頭でない
+        self.assertFalse(cm.is_watched("kitawak@gmail.com", watch))
+        self.assertFalse(cm.is_watched("x@sub.ks-sys.jp", watch))
+
+    def test_contains_any_domain(self):
+        watch = cm.parse_watch_list("*@ks-sys.jp,*kitawaki*@*")
+        self.assertTrue(cm.is_watched("taro.kitawaki@gmail.com", watch))
+        self.assertTrue(cm.is_watched("kitawaki@example.jp", watch))
+        self.assertTrue(cm.is_watched("x-KITAWAKI-y@a.b.jp", watch))
+        self.assertFalse(cm.is_watched("kita-waki@gmail.com", watch))
+        self.assertFalse(cm.is_watched("taro@kitawaki.jp", watch))  # ドメイン側だけは対象外
+
+    def test_regex_chars_are_literal(self):
+        watch = cm.parse_watch_list("a.b@x.jp")
+        self.assertTrue(cm.is_watched("a.b@x.jp", watch))
+        self.assertFalse(cm.is_watched("aXb@x.jp", watch))
+
     def test_invalid_entries_ignored(self):
-        self.assertEqual(cm.parse_watch_list("*@*, @, abc, *@nodot"), frozenset())
+        self.assertEqual(cm.parse_watch_list("*@*, **@*, @, abc, *@nodot, a@b@c.jp"), frozenset())
+
+    def test_only_match_all_is_config_error(self):
+        with self.assertRaises(cm.ConfigError):
+            cm.load_config(dict(ENV_OK, WATCH_FROM="*@*"))
 
 
 class HeaderTest(unittest.TestCase):
