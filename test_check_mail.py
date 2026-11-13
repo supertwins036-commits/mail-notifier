@@ -115,6 +115,40 @@ class HeaderTest(unittest.TestCase):
         self.assertEqual(payload["allowed_mentions"], {"parse": []})
 
 
+class DateTest(unittest.TestCase):
+    def test_converted_to_jst_with_weekday(self):
+        self.assertEqual(cm.format_date_jst("Fri, 13 Nov 2026 14:05:12 +0900"), "2026-11-13（金）14:05")
+        self.assertEqual(cm.format_date_jst("Fri, 13 Nov 2026 20:30:00 +0000"), "2026-11-14（土）05:30")
+
+    def test_unreadable_or_empty(self):
+        self.assertEqual(cm.format_date_jst(""), "不明")
+        self.assertEqual(cm.format_date_jst("あした"), "あした")
+        self.assertEqual(cm.format_date_jst("Fri, 13 Nov 2026 14:05:12 -0000"), "Fri, 13 Nov 2026 14:05:12 -0000")
+
+    def test_payload_uses_jst(self):
+        info = cm.parse_headers(1, header("a@b.com"))
+        fields = cm.build_discord_payload(info)["embeds"][0]["fields"]
+        self.assertEqual(fields[1]["value"], "2026-11-13（金）10:00")
+
+
+class TestModeTest(unittest.TestCase):
+    def test_sends_one_sample(self):
+        sent = []
+        rc = cm.send_test({"DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/x/y"},
+                          lambda url, p: sent.append(p))
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(sent), 1)
+        self.assertIn("試し", sent[0]["embeds"][0]["title"])
+
+    def test_missing_webhook(self):
+        self.assertEqual(cm.send_test({}, lambda url, p: None), 2)
+
+    def test_send_failure(self):
+        def boom(url, p):
+            raise RuntimeError("down")
+        self.assertEqual(cm.send_test({"DISCORD_WEBHOOK_URL": "https://x"}, boom), 1)
+
+
 class RunTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

@@ -12,6 +12,8 @@ GitHub Actions から定期的に動かす想定。設定はすべて環境変�
                          (「*」は @ 以外の0文字以上。大文字小文字は区別しない)
     DISCORD_WEBHOOK_URL  通知先の Discord Webhook URL
 
+「python check_mail.py --test」は、見本の通知を1通だけ送る(DISCORD_WEBHOOK_URL だけ使う)。
+
 既に知らせたメールは state.json(最後に見た UID)で覚える。
 初回は「いまある分」を既読扱いにして、過去のメールをまとめて通知しない。
 メールの本文は読まない・ログに出さない(公開リポジトリでもログから漏れないように)。
@@ -30,8 +32,11 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from datetime import timedelta, timezone
 from pathlib import Path
 
+JST = timezone(timedelta(hours=9), "JST")
+WEEKDAYS_JA = "月火水木金土日"
 STATE_PATH = Path(__file__).with_name("state.json")
 DISCORD_TIMEOUT_SEC = 20
 IMAP_TIMEOUT_SEC = 30
@@ -172,6 +177,32 @@ def save_state(path: Path, uidvalidity: int, last_uid: int) -> None:
                     encoding="utf-8")
 
 
+def format_date_jst(raw: str) -> str:
+    """「Fri, 13 Nov 2026 05:05:12 +0000」→「2026-11-13（金）14:05」。読めなければ元のまま。"""
+    if not raw or not raw.strip():
+        return "不明"
+    try:
+        dt = email.utils.parsedate_to_datetime(raw)
+    except (TypeError, ValueError, IndexError):
+        return raw.strip()
+    if dt is None or dt.tzinfo is None:  # 時差の書かれていない日時は換算できない
+        return raw.strip()
+    dt = dt.astimezone(JST)
+    return f"{dt:%Y-%m-%d}（{WEEKDAYS_JA[dt.weekday()]}）{dt:%H:%M}"
+
+
+def build_test_payload() -> dict:
+    """Discord への届き方を確かめるための見本(メールボックスは見ない)。"""
+    sample = MailInfo(
+        uid=0,
+        from_addr="sample@example.com",
+        from_display="試しの送信",
+        subject="【試し】これは通知の見本です(メールは届いていません)",
+        date=email.utils.format_datetime(email.utils.localtime()),
+    )
+    return build_discord_payload(sample)
+
+
 def build_discord_payload(mail: MailInfo) -> dict:
     who = f"{mail.from_display} <{mail.from_addr}>" if mail.from_display else mail.from_addr
     return {
@@ -181,7 +212,7 @@ def build_discord_payload(mail: MailInfo) -> dict:
             "title": mail.subject[:250],
             "fields": [
                 {"name": "差出人", "value": who[:1000], "inline": False},
-                {"name": "日時", "value": (mail.date or "不明")[:100], "inline": False},
+                {"name": "日時", "value": format_date_jst(mail.date)[:100], "inline": False},
             ],
         }],
         "allowed_mentions": {"parse": []},  # 件名に @everyone があっても鳴らさない
@@ -280,7 +311,25 @@ def run(cfg: Config, box, state_path: Path, notify=send_discord) -> int:
     return sent
 
 
-def main() -> int:
+def send_test(env: dict[str, str], notify=send_discord) -> int:
+    """--test: 見本を1通だけ Discord に送る。メールボックスにも state.json にも触れない。"""
+    webhook = env.get("DISCORD_WEBHOOK_URL", "").strip()
+    if not webhook.startswith("https://"):
+        print("設定の誤り: DISCORD_WEBHOOK_URL が無いか、https:// で始まっていません", file=sys.stderr)
+        return 2
+    try:
+        notify(webhook, build_test_payload())
+    except Exception as e:
+        print(f"失敗しました: {e}", file=sys.stderr)
+        return 1
+    print("見本の通知を1通、Discord に送りました")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if "--test" in argv:
+        return send_test(dict(os.environ))
     try:
         cfg = load_config(dict(os.environ))
     except ConfigError as e:

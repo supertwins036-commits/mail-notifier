@@ -6,7 +6,12 @@ on:
     # 5分おき(GitHub の最短)。混雑時は遅れたり抜けたりすることがある。
     # 非公開リポジトリでは無料枠(月2000分)を超えるので "*/30 * * * *" などにする。
     - cron: "*/5 * * * *"
-  workflow_dispatch: {}   # Actions の画面から手で動かせるように
+  workflow_dispatch:      # Actions の画面から手で動かせるように
+    inputs:
+      test:
+        description: "試しに見本の通知を1通だけ送る(メールは見ない)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # state.json を書き戻すため
@@ -25,7 +30,14 @@ jobs:
       - name: テスト
         run: python3 -m unittest -q test_check_mail
 
+      - name: 試しに見本を送る
+        if: ${{ inputs.test }}
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python3 check_mail.py --test
+
       - name: メールを確かめて通知
+        if: ${{ !inputs.test }}
         env:
           IMAP_HOST: ${{ secrets.IMAP_HOST }}
           IMAP_PORT: ${{ secrets.IMAP_PORT }}
