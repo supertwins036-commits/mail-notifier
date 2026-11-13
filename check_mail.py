@@ -8,7 +8,7 @@ GitHub Actions から定期的に動かす想定。設定はすべて環境変�
     IMAP_PASSWORD        メールのパスワード
     IMAP_FOLDER          省略時 INBOX
     WATCH_FROM           見張る差出人。複数はカンマ区切り。「a@x.jp」はアドレス全体、
-                         「*@x.jp」はそのドメインのすべて、「kitawaki*@*」は kitawaki で始まる人
+                         「*@x.jp」はそのドメインのすべて、「yamada*@*」は yamada で始まる人
                          (「*」は @ 以外の0文字以上。大文字小文字は区別しない)
     DISCORD_WEBHOOK_URL  通知先の Discord Webhook URL
 
@@ -94,7 +94,7 @@ def parse_watch_list(raw: str) -> frozenset[str]:
 
     boss@example.com   その人だけ
     *@example.com      そのドメインのすべて(サブドメインは含まない)
-    kitawaki*@*        kitawaki で始まる人(ドメインは問わない)
+    yamada*@*        yamada で始まる人(ドメインは問わない)
 
     すべてに一致する「*@*」や、形のおかしいものは無視する(大量の通知を防ぐ)。
     """

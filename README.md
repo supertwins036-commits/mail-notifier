@@ -12,8 +12,8 @@
 ## 準備
 
 1. **Discord の Webhook URL** を用意する(チャンネルの設定 → 連携サービス → ウェブフック)。
-2. **IMAP の接続先**を確かめる。Webメールが `webmail1025.onamae.ne.jp` なら、受信サーバーは
-   `mail1025.onamae.ne.jp`(2026-11-13 に 993 番へつながることを確認)。
+2. **IMAP の接続先**を確かめる。Webメールが `webmailXXXX.onamae.ne.jp` なら、受信サーバーは
+   `mailXXXX.onamae.ne.jp`。
 3. このフォルダを GitHub のリポジトリにして push する。定期実行は、Secrets を入れ終えるまで止めておく
    (設定がないまま動くと5分おきに失敗のメールが来るため)。
 4. リポジトリの Settings → Secrets and variables → Actions → **New repository secret** で次を登録する。
@@ -40,7 +40,7 @@
 |---|---|
 | `boss@x.jp` | その人だけ(`xboss@x.jp` は別) |
 | `*@x.jp` | x.jp のすべて(サブドメイン `a@sub.x.jp` は含まない) |
-| `*kitawaki*@*` | @ より前に kitawaki を含む人(ドメインは問わない) |
+| `*yamada*@*` | @ より前に yamada を含む人(ドメインは問わない) |
 
 すべてに一致する `*@*` は、大量の通知を防ぐため無視する。
 

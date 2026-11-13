@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 .env
+# 引き継ぎ書は非公開の ~/.claude 側に置く(公開リポジトリに入れない)
+handoff*.md
